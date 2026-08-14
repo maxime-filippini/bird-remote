@@ -1,0 +1,6 @@
+# Private transition notes and machine-specific hardware notes
+BIRD-REMOTE-HANDOFF.md
+ESP32-S3-AMOLED-DEVELOPMENT.md
+
+.DS_Store
+*.swp

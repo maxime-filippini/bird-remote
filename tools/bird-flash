@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+# Build and flash from the Git checkout on the Mac connected to the ESP32.
+set -eo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECT="${BIRD_PROJECT_DIR:-$ROOT/apps}"
+IDF_ACTIVATE="${IDF_ACTIVATE:-$HOME/.espressif/tools/activate_idf_v6.0.2.sh}"
+FLASH_BAUD="${FLASH_BAUD:-460800}"
+PORT="${ESPPORT:-}"
+PULL=true
+BUILD_ONLY=false
+APP_ONLY=false
+MONITOR=true
+CLEAN=false
+
+usage() {
+    cat <<'EOF'
+Usage: bird-flash [options]
+
+Pull the central Git repository, build the firmware, and flash the ESP32
+connected to this Mac. Run tools/install-bird-server-macos once first.
+
+Options:
+  --port DEVICE   Use a specific serial device
+  --build-only    Build without flashing
+  --app-only      Flash firmware only; do not update the partition table
+  --no-monitor    Flash without opening the serial monitor
+  --no-pull       Build the current checkout without git pull
+  --clean         Run idf.py fullclean before building
+  -h, --help      Show this help
+
+Environment overrides: BIRD_PROJECT_DIR, IDF_ACTIVATE, ESPPORT, FLASH_BAUD.
+Exit the ESP-IDF monitor with Ctrl+].
+EOF
+}
+
+while (($#)); do
+    case "$1" in
+        --port) [[ $# -ge 2 ]] || { echo "--port requires a device" >&2; exit 2; }; PORT="$2"; shift 2 ;;
+        --build-only) BUILD_ONLY=true; shift ;;
+        --app-only) APP_ONLY=true; shift ;;
+        --no-monitor) MONITOR=false; shift ;;
+        --no-pull|--no-sync) PULL=false; shift ;;
+        --clean) CLEAN=true; shift ;;
+        -h|--help) usage; exit 0 ;;
+        *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
+    esac
+done
+
+[[ "$(uname -s)" == "Darwin" ]] || echo "Warning: flashing is intended for the Mac connected to the ESP32." >&2
+if $PULL && [[ -d "$ROOT/.git" ]]; then
+    if [[ -n "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ]]; then
+        echo "Tracked files have local changes; refusing to pull." >&2
+        echo "Commit/stash them or use --no-pull." >&2
+        exit 1
+    fi
+    echo "==> Pulling central repository"
+    git -C "$ROOT" pull --ff-only
+fi
+
+[[ -f "$PROJECT/CMakeLists.txt" ]] || { echo "No ESP-IDF project at $PROJECT" >&2; exit 1; }
+[[ -s "$PROJECT/sdkconfig.defaults.local" ]] || {
+    echo "Missing firmware server settings. Run tools/install-bird-server-macos first." >&2; exit 1;
+}
+
+defaults_stamp="$PROJECT/.sdkconfig-defaults.sha256"
+defaults_hash="$(shasum -a 256 "$PROJECT/sdkconfig.defaults" "$PROJECT/sdkconfig.defaults.local" | shasum -a 256 | awk '{print $1}')"
+previous_hash="$(cat "$defaults_stamp" 2>/dev/null || true)"
+if [[ "$defaults_hash" != "$previous_hash" ]]; then
+    echo "==> Firmware settings changed; regenerating sdkconfig"
+    rm -f "$PROJECT/sdkconfig" "$PROJECT/sdkconfig.old"
+    rm -rf "$PROJECT/build"
+    printf '%s\n' "$defaults_hash" > "$defaults_stamp"
+fi
+
+if [[ ! -f "$IDF_ACTIVATE" ]]; then
+    fallback="$(find "$HOME/.espressif/tools" -maxdepth 1 -type f -name 'activate_idf_*.sh' 2>/dev/null | sort | tail -1)"
+    [[ -n "$fallback" ]] || { echo "Could not find ESP-IDF activation; set IDF_ACTIVATE." >&2; exit 1; }
+    IDF_ACTIVATE="$fallback"
+fi
+
+echo "==> Activating ESP-IDF with $IDF_ACTIVATE"
+if [[ "$(basename "$IDF_ACTIVATE")" == activate_idf_*.sh ]]; then
+    original_path="$PATH"
+    activation_environment="$("$IDF_ACTIVATE" -e)"
+    set -a; eval "$activation_environment"; set +a
+    PATH="$IDF_PATH/tools:$PATH:${SYSTEM_PATH:-$original_path}"; export PATH
+else
+    # shellcheck disable=SC1090
+    source "$IDF_ACTIVATE"
+fi
+command -v idf.py >/dev/null || { echo "idf.py unavailable after activation" >&2; exit 1; }
+cd "$PROJECT"
+[[ -f sdkconfig ]] || { echo "==> Configuring esp32s3"; idf.py set-target esp32s3; }
+$CLEAN && { echo "==> Cleaning"; idf.py fullclean; }
+echo "==> Building"; idf.py build
+$BUILD_ONLY && { echo "==> Build complete: $PROJECT/build"; exit 0; }
+
+if [[ -z "$PORT" ]]; then
+    ports=(/dev/cu.usbmodem*)
+    [[ -e "${ports[0]}" ]] || { echo "No /dev/cu.usbmodem* device found." >&2; exit 1; }
+    ((${#ports[@]} == 1)) || { printf 'Multiple devices found:\n  %s\n' "${ports[@]}" >&2; exit 1; }
+    PORT="${ports[0]}"
+fi
+[[ -e "$PORT" ]] || { echo "Serial device does not exist: $PORT" >&2; exit 1; }
+target=flash; $APP_ONLY && target=app-flash
+echo "==> Flashing $PORT at $FLASH_BAUD baud"
+if $MONITOR; then idf.py -p "$PORT" -b "$FLASH_BAUD" "$target" monitor
+else idf.py -p "$PORT" -b "$FLASH_BAUD" "$target"; fi

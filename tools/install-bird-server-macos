@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# Install or update the Bird Remote server as a per-user macOS LaunchAgent.
+set -euo pipefail
+
+[[ "$(uname -s)" == "Darwin" ]] || { echo "Run this installer on the MacBook." >&2; exit 1; }
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SERVER_IP="${BIRD_SERVER_IP:-}"
+
+while (($#)); do
+    case "$1" in
+        --ip) [[ $# -ge 2 ]] || { echo "--ip requires an address" >&2; exit 2; }; SERVER_IP="$2"; shift 2 ;;
+        -h|--help) echo "Usage: $0 [--ip MAC_LAN_IP]"; exit 0 ;;
+        *) echo "Unknown option: $1" >&2; exit 2 ;;
+    esac
+done
+
+node_path="$(command -v node || true)"
+[[ -n "$node_path" ]] || { echo "Node.js 22+ is required (brew install node)." >&2; exit 1; }
+node_major="$("$node_path" -p 'process.versions.node.split(".")[0]')"
+((node_major >= 22)) || { echo "Node.js 22+ is required; found $("$node_path" --version)." >&2; exit 1; }
+
+if [[ -z "$SERVER_IP" ]]; then
+    interface="$(route -n get default 2>/dev/null | awk '/interface:/{print $2; exit}')"
+    [[ -n "$interface" ]] && SERVER_IP="$(ipconfig getifaddr "$interface" 2>/dev/null || true)"
+fi
+[[ "$SERVER_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+    echo "Could not detect the MacBook LAN address; rerun with --ip ADDRESS." >&2
+    exit 1
+}
+
+config_dir="$HOME/Library/Application Support/Bird Remote"
+state_dir="$HOME/Library/Application Support/Bird Remote/state"
+log_dir="$HOME/Library/Logs/Bird Remote"
+env_file="$config_dir/server.env"
+plist="$HOME/Library/LaunchAgents/com.birdremote.server.plist"
+mkdir -p "$config_dir" "$state_dir" "$log_dir" "$HOME/Library/LaunchAgents" "$HOME/bin"
+
+if [[ -r "$env_file" ]]; then
+    # shellcheck disable=SC1090
+    source "$env_file"
+fi
+token="${BIRD_REMOTE_TOKEN:-$(openssl rand -hex 32)}"
+quote() { printf '%q' "$1"; }
+{
+    printf 'export BIRD_REMOTE_TOKEN=%s\n' "$(quote "$token")"
+    printf 'export BIRD_REMOTE_HOST=0.0.0.0\nexport BIRD_REMOTE_PORT=8080\n'
+    printf 'export BIRD_STATE_PATH=%s\n' "$(quote "$state_dir/state.json")"
+    printf 'export BIRD_NODE=%s\n' "$(quote "$node_path")"
+    printf 'export BIRD_REPOSITORY=%s\n' "$(quote "$ROOT")"
+} > "$env_file"
+chmod 600 "$env_file"
+
+local_defaults="$ROOT/apps/sdkconfig.defaults.local"
+new_defaults="$(printf 'CONFIG_BIRD_REMOTE_SERVER_URL=\"http://%s:8080\"\nCONFIG_BIRD_REMOTE_TOKEN=\"%s\"\n' "$SERVER_IP" "$token")"
+old_defaults="$(cat "$local_defaults" 2>/dev/null || true)"
+printf '%s' "$new_defaults" > "$local_defaults"
+chmod 600 "$local_defaults"
+if [[ "$new_defaults" != "$old_defaults" ]]; then
+    rm -f "$ROOT/apps/sdkconfig" "$ROOT/apps/sdkconfig.old" "$ROOT/apps/.sdkconfig-defaults.sha256"
+    rm -rf "$ROOT/apps/build"
+fi
+
+xml_escape() { local value="$1"; value="${value//&/&amp;}"; value="${value//</&lt;}"; value="${value//>/&gt;}"; printf '%s' "$value"; }
+runner="$(xml_escape "$ROOT/tools/run-bird-server-macos")"
+log_path="$(xml_escape "$log_dir/server.log")"
+cat > "$plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.birdremote.server</string>
+  <key>ProgramArguments</key><array><string>$runner</string></array>
+  <key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>$log_path</string>
+  <key>StandardErrorPath</key><string>$log_path</string>
+</dict></plist>
+EOF
+plutil -lint "$plist" >/dev/null
+chmod +x "$ROOT/tools/run-bird-server-macos" "$ROOT/tools/bird-flash"
+
+launchctl bootout "gui/$UID/com.birdremote.server" 2>/dev/null || true
+launchctl bootstrap "gui/$UID" "$plist"
+launchctl enable "gui/$UID/com.birdremote.server"
+launchctl kickstart -k "gui/$UID/com.birdremote.server"
+
+for _ in {1..20}; do
+    if curl -fsS --max-time 1 http://127.0.0.1:8080/health >/dev/null; then break; fi
+    sleep .25
+done
+curl -fsS http://127.0.0.1:8080/health >/dev/null || {
+    echo "Server failed to start; inspect: $log_dir/server.log" >&2; exit 1;
+}
+
+cat > "$HOME/bin/bird-flash" <<EOF
+#!/usr/bin/env bash
+exec $(quote "$ROOT/tools/bird-flash") "\$@"
+EOF
+chmod +x "$HOME/bin/bird-flash"
+
+echo "Bird Remote is running."
+echo "  Display: http://localhost:8080/"
+echo "  LAN health: http://$SERVER_IP:8080/health"
+echo "  Logs: $log_dir/server.log"
+echo "Reserve $SERVER_IP for this MacBook in the router before flashing."
+echo "Then run: ~/bin/bird-flash"

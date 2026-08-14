@@ -1,0 +1,16 @@
+menu "Bird Remote"
+
+config BIRD_REMOTE_SERVER_URL
+    string "Bird server base URL"
+    default ""
+    help
+        Directly reachable server URL without a trailing slash.
+
+config BIRD_REMOTE_TOKEN
+    string "Bird server shared token"
+    default ""
+    help
+        Shared bearer token for POST /api/next. Keep the value in a local
+        sdkconfig or sdkconfig.defaults.local that is not committed.
+
+endmenu

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CONFIG_DIR="$HOME/Library/Application Support/Bird Remote"
+ENV_FILE="$CONFIG_DIR/server.env"
+[[ -r "$ENV_FILE" ]] || { echo "Missing $ENV_FILE" >&2; exit 1; }
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+cd "$BIRD_REPOSITORY/apps/server"
+exec "$BIRD_NODE" server.mjs
