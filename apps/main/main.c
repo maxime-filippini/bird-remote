@@ -101,8 +101,7 @@ static void style_action_button_for_setup(void)
 
 static void style_action_button_for_remote(void)
 {
-    /* The enclosure is mounted with its original right edge at the top. The
-     * rotated display is 448x368, so percentages preserve a small, even bezel. */
+    /* Percentages preserve a small, even bezel in the mounted orientation. */
     lv_obj_set_size(s_action_button, lv_pct(94), lv_pct(92));
     lv_obj_align(s_action_button, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_style_radius(s_action_button, 0, LV_PART_MAIN);
@@ -757,7 +756,7 @@ void app_main(void)
         ESP_LOGE(TAG, "Could not lock LVGL");
         abort();
     }
-    bsp_display_rotate(display, LV_DISPLAY_ROTATION_90);
+    bsp_display_rotate(display, LV_DISPLAY_ROTATION_180);
     create_ui(display);
     lv_obj_invalidate(lv_display_get_screen_active(display));
     lv_refr_now(display);
