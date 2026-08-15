@@ -83,7 +83,7 @@ launchctl enable "gui/$UID/com.birdremote.server"
 launchctl kickstart -k "gui/$UID/com.birdremote.server"
 
 for _ in {1..20}; do
-    if curl -fsS --max-time 1 http://127.0.0.1:8080/health >/dev/null; then break; fi
+    if curl -fsS --max-time 1 http://127.0.0.1:8080/health >/dev/null 2>&1; then break; fi
     sleep .25
 done
 curl -fsS http://127.0.0.1:8080/health >/dev/null || {
