@@ -141,8 +141,6 @@ static void ui_show_remote(const char *ip_address)
     } else {
         lv_obj_remove_state(s_action_button, LV_STATE_DISABLED);
     }
-    lv_obj_invalidate(s_screen);
-    lv_refr_now(lv_obj_get_display(s_screen));
 
     bsp_display_unlock();
 }
@@ -758,7 +756,7 @@ void app_main(void)
         ESP_LOGE(TAG, "Could not lock LVGL");
         abort();
     }
-    bsp_display_rotate(display, LV_DISPLAY_ROTATION_90);
+    bsp_display_rotate(display, LV_DISPLAY_ROTATION_270);
     create_ui(display);
     lv_obj_invalidate(lv_display_get_screen_active(display));
     lv_refr_now(display);
