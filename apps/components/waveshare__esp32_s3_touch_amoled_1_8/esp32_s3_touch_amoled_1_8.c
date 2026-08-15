@@ -569,9 +569,9 @@ static lv_display_t *bsp_display_lcd_init()
             .mirror_y = false,
         },
         .flags = {
-            /* CO5300 supports MADCTL rotation. Hardware rotation avoids the
-             * extra software buffer that became unreliable after Wi-Fi init. */
-            .sw_rotate = false,
+            /* The CO5300 QSPI path corrupts partial updates when MADCTL swaps
+             * axes. Keep rotation in LVGL, where 90-degree chunks are stable. */
+            .sw_rotate = true,
             .buff_dma = false,
 #if CONFIG_BSP_DISPLAY_LVGL_PSRAM
             .buff_spiram = false,
