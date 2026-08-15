@@ -92,7 +92,10 @@ fi
 command -v idf.py >/dev/null || { echo "idf.py unavailable after activation" >&2; exit 1; }
 cd "$PROJECT"
 [[ -f sdkconfig ]] || { echo "==> Configuring esp32s3"; idf.py set-target esp32s3; }
-$CLEAN && { echo "==> Cleaning"; idf.py fullclean; }
+if $CLEAN; then
+    echo "==> Removing generated build and managed components"
+    rm -rf "$PROJECT/build" "$PROJECT/managed_components"
+fi
 echo "==> Building"; idf.py build
 $BUILD_ONLY && { echo "==> Build complete: $PROJECT/build"; exit 0; }
 
