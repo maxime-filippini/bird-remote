@@ -4,4 +4,5 @@ dependencies:
   idf: ">=5.5"
   waveshare/esp32_s3_touch_amoled_1_8:
     version: "^2.0.3"
+    override_path: "../components/waveshare__esp32_s3_touch_amoled_1_8"
     public: true
