@@ -2,30 +2,32 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Bird Remote</title><style>
-*{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#000;color:#fff}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-#bird{width:100%;height:100%;object-fit:contain;display:block;opacity:0;transition:opacity .3s}#bird.ready{opacity:1}
-.shade{position:fixed;inset:auto 0 0;padding:80px 4vw 3vh;background:linear-gradient(transparent,#000d);pointer-events:none}
-h1{margin:0;font-size:clamp(28px,4.5vw,72px);line-height:1.05;text-shadow:0 2px 12px #000}.latin{margin-top:8px;font-size:clamp(16px,2vw,30px);font-style:italic;color:#ddd}
-.credit{margin-top:12px;color:#bbb;font-size:clamp(11px,1.2vw,17px)}.credit a{color:inherit;pointer-events:auto}
-#status{position:fixed;inset:0;display:grid;place-items:center;color:#aaa;font-size:20px}#status[hidden]{display:none}
-</style></head><body><div id="status">Waiting for the bird remote…</div><img id="bird" alt="">
-<div class="shade"><h1 id="name"></h1><div class="latin" id="latin"></div><div class="credit"><span id="credit"></span> · <span id="license"></span> · <a id="source" target="_blank" rel="noopener">Wikimedia Commons</a></div></div>
+*{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#000}
+#bird{width:100%;height:100%;object-fit:contain;display:block;opacity:0;transition:opacity .3s}
+#bird.ready{opacity:1}
+</style></head><body><img id="bird" alt="">
 <script>
 let shown=0;
 function show(b){
   if(!b||b.version===shown)return;
   const preload=new Image();
   preload.onload=()=>{
-    const image=document.querySelector('#bird');image.src=b.image_url;image.alt=b.name;
-    document.querySelector('#name').textContent=b.name;const latin=document.querySelector('#latin');latin.textContent=b.scientific_name||'';latin.hidden=!b.scientific_name;
-    document.querySelector('#credit').textContent='Photo: '+b.credit;document.querySelector('#license').textContent=b.license;
-    document.querySelector('#source').href=b.source_url;document.querySelector('#status').hidden=true;shown=b.version;
+    const image=document.querySelector('#bird');
+    image.src=b.image_url;
+    image.alt='';
+    shown=b.version;
     requestAnimationFrame(()=>image.classList.add('ready'));
   };
-  preload.onerror=()=>{document.querySelector('#status').textContent='Could not load this bird';document.querySelector('#status').hidden=false};
   preload.src=b.image_url;
 }
-async function refresh(){try{const r=await fetch('/api/current',{cache:'no-store'});if(!r.ok)throw Error();show(await r.json())}catch{document.querySelector('#status').textContent='Bird remote is offline';document.querySelector('#status').hidden=false}}
-refresh();const events=new EventSource('/api/events');events.addEventListener('bird',event=>show(JSON.parse(event.data)));events.onerror=refresh;
+async function refresh(){
+  try{
+    const response=await fetch('/api/current',{cache:'no-store'});
+    if(response.ok)show(await response.json());
+  }catch{}
+}
+refresh();
+const events=new EventSource('/api/events');
+events.addEventListener('bird',event=>show(JSON.parse(event.data)));
+events.onerror=refresh;
 </script></body></html>

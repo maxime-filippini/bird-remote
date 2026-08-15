@@ -24,9 +24,10 @@ async function running(options={}) {
   return {app,base,close:()=>new Promise(resolve=>app.server.close(resolve))};
 }
 
-test('display hides resolved status and keeps the current image visible while swapping',()=>{
+test('display contains only the bird photo and keeps it visible while swapping',()=>{
   const html=readFileSync(new URL('./display.html',import.meta.url),'utf8');
-  assert.match(html,/#status\[hidden\]\s*\{[^}]*display\s*:\s*none/);
+  assert.match(html,/<body><img id="bird" alt="">/);
+  assert.doesNotMatch(html,/(id="(?:status|name|latin|credit|license|source)"|Wikimedia|Photo:|Waiting)/);
   assert.doesNotMatch(html,/image\.classList\.remove\(['"]ready['"]\)/);
 });
 
