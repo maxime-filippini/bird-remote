@@ -756,7 +756,7 @@ void app_main(void)
         ESP_LOGE(TAG, "Could not lock LVGL");
         abort();
     }
-    bsp_display_rotate(display, LV_DISPLAY_ROTATION_180);
+    bsp_display_rotate(display, LV_DISPLAY_ROTATION_90);
     create_ui(display);
     lv_obj_invalidate(lv_display_get_screen_active(display));
     lv_refr_now(display);
