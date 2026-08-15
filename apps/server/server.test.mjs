@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createBirdServer, loadCatalog } from './server.mjs';
@@ -23,6 +23,12 @@ async function running(options={}) {
   const base=`http://127.0.0.1:${app.server.address().port}`;
   return {app,base,close:()=>new Promise(resolve=>app.server.close(resolve))};
 }
+
+test('display hides resolved status and keeps the current image visible while swapping',()=>{
+  const html=readFileSync(new URL('./display.html',import.meta.url),'utf8');
+  assert.match(html,/#status\[hidden\]\s*\{[^}]*display\s*:\s*none/);
+  assert.doesNotMatch(html,/image\.classList\.remove\(['"]ready['"]\)/);
+});
 
 test('catalog follows JPEG directory and rejects unattributed JPEGs',()=>{
   const directory=assets();assert.equal(loadCatalog(directory).length,2);

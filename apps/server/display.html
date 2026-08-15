@@ -8,7 +8,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 .shade{position:fixed;inset:auto 0 0;padding:80px 4vw 3vh;background:linear-gradient(transparent,#000d);pointer-events:none}
 h1{margin:0;font-size:clamp(28px,4.5vw,72px);line-height:1.05;text-shadow:0 2px 12px #000}.latin{margin-top:8px;font-size:clamp(16px,2vw,30px);font-style:italic;color:#ddd}
 .credit{margin-top:12px;color:#bbb;font-size:clamp(11px,1.2vw,17px)}.credit a{color:inherit;pointer-events:auto}
-#status{position:fixed;inset:0;display:grid;place-items:center;color:#aaa;font-size:20px}
+#status{position:fixed;inset:0;display:grid;place-items:center;color:#aaa;font-size:20px}#status[hidden]{display:none}
 </style></head><body><div id="status">Waiting for the bird remote…</div><img id="bird" alt="">
 <div class="shade"><h1 id="name"></h1><div class="latin" id="latin"></div><div class="credit"><span id="credit"></span> · <span id="license"></span> · <a id="source" target="_blank" rel="noopener">Wikimedia Commons</a></div></div>
 <script>
@@ -17,7 +17,7 @@ function show(b){
   if(!b||b.version===shown)return;
   const preload=new Image();
   preload.onload=()=>{
-    const image=document.querySelector('#bird');image.classList.remove('ready');image.src=b.image_url;image.alt=b.name;
+    const image=document.querySelector('#bird');image.src=b.image_url;image.alt=b.name;
     document.querySelector('#name').textContent=b.name;const latin=document.querySelector('#latin');latin.textContent=b.scientific_name||'';latin.hidden=!b.scientific_name;
     document.querySelector('#credit').textContent='Photo: '+b.credit;document.querySelector('#license').textContent=b.license;
     document.querySelector('#source').href=b.source_url;document.querySelector('#status').hidden=true;shown=b.version;
